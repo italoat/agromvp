@@ -6,6 +6,6 @@ pandas
 geopandas
 shapely
 requests
-streamlit
+streamlit>=1.35.0
 geoalchemy2
 rtree
