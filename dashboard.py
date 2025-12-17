@@ -5,7 +5,6 @@ import pandas as pd
 # --- CONFIGURAÇÃO DA API ---
 # IMPORTANTE: Como o Dashboard e a API rodam juntos no mesmo servidor do Render,
 # usamos o endereço interno (localhost) para garantir que a comunicação seja rápida e direta.
-# Isso resolve o erro "Expecting value..." (que ocorria ao tentar sair para a internet e voltar).
 API_URL = "http://127.0.0.1:8000"
 
 st.set_page_config(page_title="AgroCredit System", page_icon="🌽", layout="wide")
@@ -46,7 +45,7 @@ if opcao == "🗺️ Radar de Mercado (Mapa)":
                 except:
                     df_green = pd.DataFrame()
 
-                # 3. Processamento das Cores
+                # 3. Processamento das Cores e Tipos
                 if not df_risco.empty:
                     df_risco["cor"] = "#FF0044" # Vermelho Alerta
                     df_risco["tipo"] = "Risco Ambiental (Embargada)"
@@ -62,7 +61,7 @@ if opcao == "🗺️ Radar de Mercado (Mapa)":
                 # 4. Unificação
                 df_final = pd.concat([df_risco, df_green], ignore_index=True)
                 
-                # Salva na memória do navegador
+                # Salva na memória do navegador (Session State)
                 st.session_state['mapa_dados'] = df_final
                 
                 total_r = len(df_risco)
@@ -72,26 +71,71 @@ if opcao == "🗺️ Radar de Mercado (Mapa)":
             except Exception as e:
                 st.error(f"Erro crítico ao processar dados: {e}")
 
-    # Renderiza o Mapa se houver dados
+    # Renderiza o Mapa e a Lista se houver dados
     if 'mapa_dados' in st.session_state:
         df = st.session_state['mapa_dados']
         
-        # Filtro de Cidade
+        # --- ÁREA DE FILTROS ---
+        st.markdown("### Filtros de Visualização")
+        c1, c2 = st.columns(2)
+        
+        # Filtro 1: Município
         cidades = ["Todos"] + sorted(df['municipio'].unique().tolist())
-        filtro_cidade = st.selectbox("Filtrar por Município:", cidades)
+        filtro_cidade = c1.selectbox("📍 Filtrar por Município:", cidades)
+        
+        # Filtro 2: Status (Risco / Oportunidade) - Multiselect
+        opcoes_tipo = df['tipo'].unique().tolist()
+        filtro_tipo = c2.multiselect(
+            "📊 Filtrar por Status:", 
+            options=opcoes_tipo, 
+            default=opcoes_tipo # Começa com todos marcados
+        )
+        
+        # Aplica os filtros no DataFrame
+        df_view = df.copy()
         
         if filtro_cidade != "Todos":
-            df_view = df[df['municipio'] == filtro_cidade]
-        else:
-            df_view = df
+            df_view = df_view[df_view['municipio'] == filtro_cidade]
+            
+        if filtro_tipo:
+            df_view = df_view[df_view['tipo'].isin(filtro_tipo)]
 
-        # O MAPA
+        # --- EXIBIÇÃO DO MAPA ---
         st.map(df_view, latitude="lat", longitude="lon", color="cor", size=20, zoom=6)
-        
         st.caption("Legenda: 🔴 Vermelho = Fazenda Embargada | 🟢 Verde = Fazenda Aprovada para Crédito")
         
-        with st.expander("Ver Lista Detalhada"):
-            st.dataframe(df_view[["car_codigo", "municipio", "tipo", "cor"]])
+        # --- EXIBIÇÃO DA LISTA DETALHADA ---
+        st.markdown("---")
+        st.subheader("📋 Lista Detalhada")
+        
+        if not df_view.empty:
+            st.dataframe(
+                df_view,
+                use_container_width=True,
+                hide_index=True,
+                # Ordem das colunas: Cor primeiro
+                column_order=["cor", "tipo", "municipio", "car_codigo"],
+                column_config={
+                    "cor": st.column_config.ColorColumn(
+                        "Indicador", # Cabeçalho da coluna
+                        width="small",
+                        help="Vermelho: Risco | Verde: Oportunidade"
+                    ),
+                    "tipo": st.column_config.TextColumn(
+                        "Classificação",
+                        width="medium"
+                    ),
+                    "municipio": st.column_config.TextColumn(
+                        "Município"
+                    ),
+                    "car_codigo": st.column_config.TextColumn(
+                        "Código CAR",
+                        help="Cadastro Ambiental Rural"
+                    )
+                }
+            )
+        else:
+            st.warning("Nenhum dado encontrado com os filtros selecionados.")
 
 # --- MÓDULO 2: SIMULADOR DE CRÉDITO ---
 elif opcao == "💰 Simulador de Crédito":
