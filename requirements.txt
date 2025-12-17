@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pandas
+geopandas
+shapely
+requests
+streamlit
+geoalchemy2
+rtree
